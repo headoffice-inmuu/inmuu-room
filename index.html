@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>인생뮤직 연습실 입실</title>
+<!-- 방문 QR 입·퇴실 인터넷 화면 (2026-10-23 민제 "B안"): 와이파이 없이 LTE로도 된다.
+     휴대폰 → Supabase 중계함(supabase/018)에 쪽지 → 카운터 PC가 몇 초 안에 처리 → 답.
+     예약은 여기서 못 한다(학원 PC에서만). 이 파일은 비밀이 없다 — 공개용 열쇠(publishable)만, 표는 자물쇠로 막혀 있고 함수 2개로만 쓴다.
+     같은 파일을 카운터 PC가 /room-cloud 로도 띄운다(시연 시험: http 로 열리면 시연 중계함 사용) -->
+<style>
+  :root { --brand:#FF6B35; --ink:#111111; --line:#3F3B36; --sub:#6B655C; --soft:#D9D6D0; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans-serif; background:#fff; color:var(--ink); }
+  header { padding:18px 20px; border-bottom:1px solid #ECEAE6; font-size:18px; font-weight:700; display:flex; justify-content:space-between; align-items:center; }
+  header small { font-size:13px; font-weight:500; color:var(--sub); }
+  main { padding:24px 20px; max-width:480px; margin:0 auto; }
+  .room { font-size:15px; color:var(--sub); }
+  h1 { font-size:30px; margin:6px 0 4px; }
+  .time { font-size:20px; font-weight:700; }
+  .hint { font-size:15px; color:var(--sub); line-height:1.7; margin:12px 0 0; }
+  .box { border:1px solid var(--soft); padding:20px; margin-top:20px; }
+  .box.on { border:2px solid var(--brand); }
+  label { display:block; font-size:15px; font-weight:700; margin:16px 0 6px; }
+  input { width:100%; font:inherit; font-size:20px; padding:12px 14px; border:1px solid var(--line); border-radius:0; }
+  input:focus { outline:2px solid var(--brand); outline-offset:-1px; }
+  .btn { display:block; width:100%; border:1px solid var(--line); background:#fff; padding:15px; font:inherit; font-size:17px; font-weight:700; margin-top:12px; cursor:pointer; color:var(--ink); }
+  .btn.pri { background:var(--brand); border-color:var(--brand); color:#fff; }
+  .btn:disabled { opacity:.5; }
+  .msg { min-height:22px; margin-top:12px; font-weight:700; color:#C62828; font-size:15px; }
+  .wait { margin-top:28px; font-size:16px; color:var(--sub); }
+  .wait i { display:inline-block; width:10px; height:10px; background:var(--brand); margin-right:8px; animation:b 1s infinite alternate; }
+  @keyframes b { from { opacity:.2 } to { opacity:1 } }
+  .foot { margin-top:28px; font-size:13px; color:var(--sub); text-align:center; }
+  .foot button { border:0; background:none; color:var(--sub); text-decoration:underline; font:inherit; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>인생뮤직 연습실 <small id="who"></small></header>
+<main id="app"></main>
+<script>
+'use strict';
+const SUPA = 'https://xvtdonfxdbouotstpoza.supabase.co', KEY = 'sb_publishable_Viu_KBcO9pbYpyLiz5f8QA_iCur9Ino';
+const DEMO = location.protocol !== 'https:';   // 카운터 PC가 띄운 시연 화면
+const q = new URLSearchParams(location.search), B = +(q.get('b') || 0), R = +(q.get('r') || 0);
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const show = html => { $('#app').innerHTML = html; };
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { } } };
+
+// 이 휴대폰 열쇠 (32자리) — 카운터 PC가 본인 확인 뒤 30일 기억
+function device(fresh) {
+  let d = fresh ? null : store.get('inmuu_room_device');
+  if (!d || !/^[0-9a-f]{32}$/.test(d)) { d = [...crypto.getRandomValues(new Uint8Array(16))].map(x => x.toString(16).padStart(2, '0')).join(''); store.set('inmuu_room_device', d); }
+  return d;
+}
+const NO_PC = '카운터 PC가 응답하지 않아요.<br>잠시 뒤 다시 찍거나, 예약 PC에서 <b>[내 예약] → [입실]</b>을 눌러 주세요.';
+const NO_NET = '인터넷에 연결하지 못했어요.<br>와이파이나 데이터가 켜져 있는지 확인해 주세요.';
+
+async function post(url, body, headers) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) { const e = new Error((j && (j.hint || j.message || j.error)) || 'http ' + r.status); e.code = j && j.message; throw e; }
+  return j;
+}
+// 쪽지 넣기 → 쪽지 번호
+async function submit(kind, extra = {}) {
+  const dev = device();
+  if (DEMO) return (await post('/api/demo-relay/req', { room: R, kind, device: dev, ...extra })).id;
+  return await post(SUPA + '/rest/v1/rpc/room_req', { p_branch: B, p_room: R, p_kind: kind, p_device: dev, p_name: extra.name ?? null, p_tail: extra.tail ?? null, p_from: extra.from ?? null }, { apikey: KEY });
+}
+async function answer(id) {
+  const dev = device();
+  return DEMO ? await post('/api/demo-relay/res', { id, device: dev }) : await post(SUPA + '/rest/v1/rpc/room_res', { p_id: id, p_device: dev }, { apikey: KEY });
+}
+// 쪽지를 넣고 카운터 PC 답을 최대 25초 기다림
+async function ask(kind, extra) {
+  let id;
+  try { id = await submit(kind, extra); }
+  catch (e) { return { ok: false, error: e.code === 'too_many' ? '잠시 뒤에 다시 찍어 주세요.' : e.message === 'Failed to fetch' ? null : '요청하지 못했어요.', net: e.message === 'Failed to fetch' }; }
+  const until = Date.now() + 25000;
+  while (Date.now() < until) {
+    await new Promise(r => setTimeout(r, 1200));
+    try { const a = await answer(id); if (a && a.status === 'done') return a.result || { ok: false }; } catch { }
+  }
+  return { ok: false, timeout: true };
+}
+function waiting(text) { show(`<div class="wait"><i></i>${esc(text)}</div>`); }
+function fail(j) { show(`<div class="box"><p class="hint" style="margin:0">${j.timeout ? NO_PC : j.net ? NO_NET : esc(j.error || '처리하지 못했어요. 예약 PC에서 해 주세요.')}</p></div><button class="btn" id="again">다시 시도</button>${foot()}`); $('#again').onclick = scan; bindForget(); }
+const foot = () => { const n = store.get('inmuu_room_name'); return n ? `<div class="foot">${esc(n)}님이 아니세요? <button id="forget">다른 사람으로</button></div>` : ''; };
+function bindForget() { $('#forget')?.addEventListener('click', () => { device(true); store.set('inmuu_room_name', null); $('#who').textContent = ''; login(); }); }
+
+function login(msg) {
+  show(`<p class="hint" style="margin-top:0">처음 한 번만 본인 확인을 해 주세요.<br>이 휴대폰은 30일 동안 기억해요.</p>
+    <label for="name">이름</label><input id="name" autocomplete="off" placeholder="홍길동">
+    <label for="tail">휴대폰 번호 끝 4자리</label><input id="tail" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+    <div class="msg" id="msg">${esc(msg || '')}</div><button class="btn pri" id="go">확인</button>`);
+  const go = async () => {
+    const name = $('#name').value.trim(), tail = $('#tail').value.replace(/\D/g, '');
+    if (name.length < 2 || tail.length !== 4) { $('#msg').textContent = '이름과 휴대폰 번호 끝 4자리를 넣어 주세요.'; return; }
+    $('#go').disabled = true; $('#msg').textContent = ''; $('#go').textContent = '확인하는 중…';
+    const j = await ask('login', { name, tail });
+    if (!j.ok) { if (j.timeout || j.net) return fail(j); $('#go').disabled = false; $('#go').textContent = '확인'; $('#msg').textContent = j.error || '확인하지 못했어요.'; return; }
+    store.set('inmuu_room_name', j.name); $('#who').textContent = j.name + '님'; scan();
+  };
+  $('#go').onclick = go; $('#tail').onkeydown = e => { if (e.key === 'Enter') go(); };
+}
+
+async function scan() {
+  if (!R || (!DEMO && !B)) return show(`<p class="hint">방문에 붙은 QR을 휴대폰 카메라로 찍어 주세요.</p>`);
+  const n = store.get('inmuu_room_name'); if (n) $('#who').textContent = n + '님';
+  waiting('예약을 확인하는 중…');
+  const j = await ask('scan');
+  if (j.needLogin) return login();
+  if (!j.ok) return fail(j);
+  if (j.state === 'none') { show(`<div class="room">${esc(j.room)}</div><div class="box"><p class="hint" style="margin:0">${esc(j.msg)}</p></div>${foot()}`); return bindForget(); }
+  if (j.state === 'in') {
+    show(`<div class="room">${esc(j.room)}</div><h1>입실했어요</h1><div class="time">${esc(j.time)}</div>
+      <div class="box on"><p class="hint" style="margin:0">즐거운 연습 되세요!<br>일찍 끝나면 나갈 때 이 QR을 다시 찍어 [퇴실]을 눌러 주세요. 남은 시간은 다른 분이 쓸 수 있어요.</p></div>${foot()}`);
+    return bindForget();
+  }
+  show(`<div class="room">${esc(j.room)}</div><h1>사용 중</h1><div class="time">${esc(j.time)} · 남은 ${j.left}분</div>
+    <button class="btn pri" id="out">퇴실하기</button><div class="msg" id="msg"></div>${foot()}`);
+  bindForget();
+  $('#out').onclick = async () => {
+    if (!confirm('지금 퇴실하고 남은 시간을 다른 분이 쓸 수 있게 할까요?')) return;
+    $('#out').disabled = true; $('#out').textContent = '처리하는 중…';
+    const o = await ask('out', { from: j.from });
+    if (!o.ok) { if (o.timeout || o.net) return fail(o); $('#out').disabled = false; $('#out').textContent = '퇴실하기'; $('#msg').textContent = o.error || '퇴실하지 못했어요. 카운터에 말씀해 주세요.'; return; }
+    show(`<div class="room">${esc(j.room)}</div><h1>퇴실했어요</h1><div class="box"><p class="hint" style="margin:0">수고하셨어요! 문 닫고 불 꺼 주세요.</p></div>`);
+  };
+}
+scan();
+</script>
+</body>
+</html>
