@@ -22,6 +22,8 @@ async function call(path, body) {
     catch { throw new Error('net'); }
     if (j.needRegister) { registerScreen(); throw new Error('pin'); }
     if (j.notReady) { $('#app').innerHTML = `<div class="center card"><h3>연습실 서버 준비 중이에요</h3><p class="hint">${esc(j.error || '')}</p></div>`; throw new Error('off'); }
+    // 방 목록을 못 받으면 (학원 시스템 로그인 등) 이유를 그대로 보여 줌 — 자동 다시 시도는 서버가 30분 막아 둠
+    if (action === 'rooms' && !j.ok) { $('#app').innerHTML = `<div class="center card"><h3>지금 예약 화면을 열 수 없어요</h3><p class="hint">${esc(j.error || '잠시 후 다시 시도해 주세요.')}</p></div>`; throw new Error('off'); }
     return j;
   }
   const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
