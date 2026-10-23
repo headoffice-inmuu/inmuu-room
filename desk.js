@@ -275,9 +275,16 @@ async function reset(msg) {
 }
 function tick() { const c = $('#clock'); if (c) c.textContent = new Date().toTimeString().slice(0, 5); }
 setInterval(tick, 10000);
-async function refresh() { D.r = await call('/api/kiosk/desk/rooms'); }
+async function refresh() { D.r = await call('/api/kiosk/desk/rooms'); D.at = Date.now(); }
 // 30초마다 빈 방 다시 읽기 (창이 떠 있으면 건너뜀)
-setInterval(async () => { if ($('#modal')) return; try { await refresh(); draw(); } catch { } }, 30000);   // 30초 (2026-10-23: 10초면 예약 PC 2대로 Supabase 무료 한도 월 50만 번 초과 — 겹침은 [예약하기] 때 서버가 다시 확인)
+// 새로 읽기는 필요할 때만 (2026-10-23 민제 "매번 호출할 이유가 없지 않아?"): 아무도 안 만지면 5분마다(시간 칸 넘어감 반영),
+// 수강생이 화면을 누르면 그때 바로(30초에 한 번까지). 겹침은 [예약하기] 때 서버가 다시 확인하므로 화면이 조금 늦어도 사고 없음
+setInterval(async () => { if ($('#modal')) return; try { await refresh(); draw(); } catch { } }, CLOUD ? 300000 : 30000);
+document.addEventListener('pointerdown', () => {
+  if (!CLOUD || $('#modal') || !D.r || Date.now() - (D.at || 0) < 30000) return;
+  D.at = Date.now();
+  refresh().then(() => { if (!$('#modal')) draw(); }).catch(() => { });
+});
 
 // PC마다 처음 보이는 층: 등록 때 적은 PC 이름에 "5층"·"7층"이 있으면 그 층 구역부터 (2026-10-23)
 function homeZone() {
