@@ -74,8 +74,18 @@ async function answer(id) {
   const dev = device();
   return DEMO ? await post('/api/demo-relay/res', { id, device: dev }) : await post(SUPA + '/rest/v1/rpc/room_res', { p_id: id, p_device: dev }, { apikey: KEY });
 }
-// 쪽지를 넣고 카운터 PC 답을 최대 25초 기다림
+// 인터넷 서버 함수 (C안 2026-10-23): 카운터 PC를 기다리지 않고 서버가 바로 학원 시스템을 확인해 답함.
+// 카운터 PC 시연 화면(http)에서는 예전 우체통(시연 중계함)으로.
+const FN = window.PRACTICE_FN || (DEMO ? '' : SUPA + '/functions/v1/practice');
+const ACT = { login: 'phone_login', scan: 'phone_scan', out: 'phone_out' };
+// 쪽지를 넣고 카운터 PC 답을 최대 25초 기다림 (인터넷 서버면 바로 답)
 async function ask(kind, extra) {
+  if (FN) {
+    try {
+      const r = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: ACT[kind], b: B, r: R, phone: device(), ...(extra || {}) }) });
+      return (await r.json()) || { ok: false };
+    } catch { return { ok: false, net: true }; }
+  }
   let id;
   try { id = await submit(kind, extra); }
   catch (e) { return { ok: false, error: e.code === 'too_many' ? '잠시 뒤에 다시 찍어 주세요.' : e.message === 'Failed to fetch' ? null : '요청하지 못했어요.', net: e.message === 'Failed to fetch' }; }
