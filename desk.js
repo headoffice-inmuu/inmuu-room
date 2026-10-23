@@ -153,7 +153,7 @@ function draw() {
   const rules = r.rules;
   $('#app').innerHTML = `<header><h1>인생뮤직 연습실</h1><span class="sub">${esc(r.branch || '')}${r.branch ? ' · ' : ''}${esc(z.name)} · ${z.open === 0 && z.close === 48 ? '24시간' : tm(z.open) + '~' + tm(z.close)}</span>
       <div class="legend"><span><i style="border:2px solid ${BRAND}"></i>예약 가능</span><span><i style="border:1px solid ${SOFT}"></i>사용 중</span><span><i style="border:4px solid ${BRAND}"></i>고른 방</span></div>
-      <button class="mine" id="mine">내 예약</button><span class="clock" id="clock"></span></header>
+      <button class="mine" id="mine">내 예약 · 취소</button><span class="clock" id="clock"></span></header>
     <main><div class="col">${left}
       <div class="card"><p class="hint">${CLOUD ? `한 번 예약은 최대 ${rules.maxHours}시간<br>예약 시간이 끝나면 다음 예약 가능<br>예약 시작 ${rules.noShowMinutes}분 안에 방문 QR로 입실<br>예약은 학원 예약 PC에서만 가능합니다` : `하루 ${rules.baseHours}시간 · 다 쓰면 30분씩 연장<br>예약 시작 ${rules.noShowMinutes}분 안에 방문 QR로 입실<br>예약은 학원에서만`}</p></div></div>
       <div class="col">${schedCol(selRoom, D.slot, D.len, r.nowSlot, r.window.map(w => w.slot))}</div>
@@ -209,7 +209,20 @@ async function reserve() {
   if (!j.ok) return modal(`<h3>예약하지 못했어요</h3><p class="hint">${esc(j.error || '')}</p><div class="row"><button class="btn pri" id="mx">확인</button></div>`, () => { $('#mx').onclick = () => { closeModal(); D.sel = null; draw(); }; });
   modal(`<h3>${esc(j.room)} 예약됐어요</h3><p class="hint" style="font-size:18px;color:#111">${j.time}~${j.end}</p>
     <p class="hint" style="margin-top:10px"><b style="color:${BRAND}">${j.checkInBy}까지</b> 방문 앞 QR을 휴대폰으로 찍어 입실해 주세요.<br>입실하지 않으면 다른 분이 쓸 수 있게 방이 풀려요.</p>
-    ${j.partial ? `<div class="msg">${esc(j.error)}</div>` : ''}<div class="row"><button class="btn pri" id="mx">확인</button></div>`, () => { $('#mx').onclick = () => reset(); });
+    ${j.partial ? `<div class="msg">${esc(j.error)}</div>` : ''}<div class="msg" id="undoMsg"></div>
+    <div class="row"><button class="btn" id="undo">방금 예약 취소</button><button class="btn pri" id="mx">확인</button></div>`, () => {
+    $('#mx').onclick = () => reset();
+    // 잘못 눌렀을 때 그 자리에서 되돌리기 (2026-10-23 민제 "예약화면에서 취소도 할 수 있어야")
+    const roomId = D.sel, from = D.slot;
+    $('#undo').onclick = async () => {
+      if (!confirm('방금 한 예약을 취소할까요?')) return;
+      $('#undo').disabled = true; poke();
+      const c = await call('/api/kiosk/desk/cancel', { t: D.t, roomId, from });
+      if (c.expired) return reset(c.error);
+      if (c.ok) return reset('예약을 취소했어요.');
+      $('#undo').disabled = false; $('#undoMsg').textContent = c.error || '취소하지 못했어요. 데스크에 말씀해 주세요.';
+    };
+  });
 }
 
 // ---------- 내 예약: 입실(QR이 안 될 때)·연장·취소 ----------
