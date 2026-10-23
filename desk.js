@@ -277,7 +277,7 @@ function tick() { const c = $('#clock'); if (c) c.textContent = new Date().toTim
 setInterval(tick, 10000);
 async function refresh() { D.r = await call('/api/kiosk/desk/rooms'); }
 // 30초마다 빈 방 다시 읽기 (창이 떠 있으면 건너뜀)
-setInterval(async () => { if ($('#modal')) return; try { await refresh(); draw(); } catch { } }, CLOUD ? 10000 : 30000);   // 인터넷 화면은 10초 (다른 예약 PC에서 잡은 방이 빨리 보이게, 2026-10-23)
+setInterval(async () => { if ($('#modal')) return; try { await refresh(); draw(); } catch { } }, 30000);   // 30초 (2026-10-23: 10초면 예약 PC 2대로 Supabase 무료 한도 월 50만 번 초과 — 겹침은 [예약하기] 때 서버가 다시 확인)
 
 // PC마다 처음 보이는 층: 등록 때 적은 PC 이름에 "5층"·"7층"이 있으면 그 층 구역부터 (2026-10-23)
 function homeZone() {
