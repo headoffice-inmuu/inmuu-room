@@ -80,15 +80,16 @@ const SUPA = 'https://xvtdonfxdbouotstpoza.supabase.co', KEY = 'sb_publishable_V
 const B = +(new URLSearchParams(location.search).get('b') || 1);
 const BRAND = '#FF6B35', BUSY = '#4A4540', CLOSED = '#EFEDE9';
 let D = null, AT = null, TYPE = '', ONLY_FREE = false, FLOOR = null;   // TYPE = 고른 과목
-// 과목 → 연습할 수 있는 방 (2026-10-26 민제): 보컬·기타·베이스 = 일반방 / 드럼 = 드럼방 / 미디 = 레코딩방 / 피아노 = 피아노방 (컴퓨터 과목 없음)
-const SUBJECTS = [['보컬', '일반'], ['기타', '일반'], ['베이스', '일반'], ['드럼', '드럼'], ['미디', '레코딩'], ['피아노', '피아노']];
+// 과목 → 연습할 수 있는 방 (2026-10-26 민제): 보컬·기타·베이스 = 일반방 / 드럼 = 드럼방 / 미디 = 레코딩/미디방 / 피아노 = 피아노방 (컴퓨터 과목 없음)
+// 레코딩/미디방 = 미디방과 같고 레코딩 부스가 있는 방 — 도면에 "미디"·"레코딩"이 적힌 방 모두 (민제 2026-10-26)
+const SUBJECTS = [['보컬', '일반'], ['기타', '일반'], ['베이스', '일반'], ['드럼', '드럼'], ['미디', '레코딩/미디'], ['피아노', '피아노']];
 let DRAWN = new Map();   // 방 번호 → 도면에 적힌 종류 (일반·피아노·드럼·미디 레코딩 — 학원 시스템 이름보다 정확)
 // 방 종류: 도면 종류를 먼저, 없으면 학원 시스템 종류로. "일반 피아노"처럼 둘이면 둘 다
 function catsOf(r) {
   const t = DRAWN.get(r.id) || r.type || '', c = [];
   if (/피아노/.test(t)) c.push('피아노');
   if (/드럼/.test(t)) c.push('드럼');
-  if (/미디|레코딩/.test(t)) c.push('레코딩');
+  if (/미디|레코딩/.test(t)) c.push('레코딩/미디');
   if (/일반|연습실|보컬|기타|베이스|컴퓨터/.test(t) || !c.length) c.push('일반');
   return c;
 }
