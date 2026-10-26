@@ -79,7 +79,21 @@
 const SUPA = 'https://xvtdonfxdbouotstpoza.supabase.co', KEY = 'sb_publishable_Viu_KBcO9pbYpyLiz5f8QA_iCur9Ino';
 const B = +(new URLSearchParams(location.search).get('b') || 1);
 const BRAND = '#FF6B35', BUSY = '#4A4540', CLOSED = '#EFEDE9';
-let D = null, AT = null, TYPE = '', ONLY_FREE = false, FLOOR = null;
+let D = null, AT = null, TYPE = '', ONLY_FREE = false, FLOOR = null;   // TYPE = 고른 과목
+// 과목 → 연습할 수 있는 방 (2026-10-26 민제): 보컬·기타·베이스 = 일반방 / 드럼 = 드럼방 / 미디 = 레코딩방 / 피아노 = 피아노방 (컴퓨터 과목 없음)
+const SUBJECTS = [['보컬', '일반'], ['기타', '일반'], ['베이스', '일반'], ['드럼', '드럼'], ['미디', '레코딩'], ['피아노', '피아노']];
+let DRAWN = new Map();   // 방 번호 → 도면에 적힌 종류 (일반·피아노·드럼·미디 레코딩 — 학원 시스템 이름보다 정확)
+// 방 종류: 도면 종류를 먼저, 없으면 학원 시스템 종류로. "일반 피아노"처럼 둘이면 둘 다
+function catsOf(r) {
+  const t = DRAWN.get(r.id) || r.type || '', c = [];
+  if (/피아노/.test(t)) c.push('피아노');
+  if (/드럼/.test(t)) c.push('드럼');
+  if (/미디|레코딩/.test(t)) c.push('레코딩');
+  if (/일반|연습실|보컬|기타|베이스|컴퓨터/.test(t) || !c.length) c.push('일반');
+  return c;
+}
+const catName = r => catsOf(r).join('·') + '방';
+const okFor = (r, subj) => !subj || catsOf(r).includes((SUBJECTS.find(x => x[0] === subj) || [])[1]);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const clean = svg => String(svg || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+\s*=\s*(["']).*?\1/gi, '');   // 도면 그림에 스크립트가 끼지 않게
@@ -147,7 +161,7 @@ function drawPlan(cur, sameDay) {
     const st = r && sameDay ? (r.cells[cur] || 'x') : 'x';   // 지금 상태 (k = 글자 배율과 이름 겹치지 않게)
     const fill = !r ? '#FFFFFF' : st === 'f' ? BRAND : st === 'b' ? BUSY : CLOSED;
     const ink = r && (st === 'f' || st === 'b') ? '#FFFFFF' : '#8A857C';
-    const pass = !r || ((!TYPE || r.type === TYPE) && (!ONLY_FREE || st === 'f'));
+    const pass = !r || (okFor(r, TYPE) && (!ONLY_FREE || st === 'f'));
     const g = 4 * sc, cx = p.x + p.w / 2, cy = p.y + p.h / 2, small = p.w < 90 * sc;
     const big = r ? (p.label && p.label !== p.drawn ? p.label : r.label) : '';   // 도면에선 번호만 크게 ("번" 없이)
     // 방 이름: 화면 15px로 같게, 칸이 좁을 때만 그 칸에 맞게 줄임 (최소 9px)
@@ -176,18 +190,18 @@ function draw() {
   const now = kst(), cur = now.slot, sameDay = D.date === now.date;
   const ageMin = Math.round((Date.now() - Date.parse(AT)) / 60000);
   const rooms = D.zones.flatMap(z => z.rooms);
-  const types = [...new Set(rooms.map(r => r.type))];
-  const pass = r => (!TYPE || r.type === TYPE);
+  DRAWN = new Map(D.zones.flatMap(z => (z.plan && z.plan.rooms) || []).filter(p => p.roomId != null).map(p => [p.roomId, p.drawn || '']));
+  const pass = r => okFor(r, TYPE);
   const free = sameDay ? rooms.filter(r => pass(r) && r.cells[cur] === 'f').length : 0;
   const hm = `${String(Math.floor(now.min / 60)).padStart(2, '0')}:${String(now.min % 60).padStart(2, '0')}`;
   $('#branch').textContent = `인생뮤직 ${D.branch ? D.branch + ' ' : ''}연습실 현황 · 지금 ${hm}`;
   $('#freeN').textContent = sameDay ? free : '-';
-  $('#freeOf').textContent = `/ ${rooms.filter(pass).length}개 방 ${TYPE ? '(' + TYPE + ')' : ''} 지금 비어 있어요`;
+  $('#freeOf').textContent = `/ ${rooms.filter(pass).length}개 방 ${TYPE ? '(' + TYPE + ' 연습)' : ''} 지금 비어 있어요`;
   const old = !sameDay || ageMin >= 10;
   $('#upd').className = 'upd' + (old ? ' old' : '');
   $('#upd').textContent = old ? `⚠ ${sameDay ? ageMin + '분 전' : '어제'} 정보예요. 잠시 뒤 다시 확인해 주세요.` : `${ageMin <= 0 ? '방금' : ageMin + '분 전'} 기준 · 오는 동안 바뀔 수 있어요`;
   setRow('#bar', `<button class="chip free ${ONLY_FREE ? 'on' : ''}" data-free>빈 방만</button><button class="chip ${TYPE ? '' : 'on'}" data-type="">전체</button>` +
-    types.map(t => `<button class="chip ${t === TYPE ? 'on' : ''}" data-type="${esc(t)}">${esc(t)}</button>`).join(''));
+    SUBJECTS.map(([t]) => `<button class="chip ${t === TYPE ? 'on' : ''}" data-type="${esc(t)}">${esc(t)}</button>`).join(''));
   drawPlan(cur, sameDay);
   // 남은 시간 막대: 지금부터 6시간(12칸), 항상 12칸 폭 (자정 넘는 칸은 빈칸)
   const span = Array.from({ length: 12 }, (_, i) => cur + i);
@@ -208,7 +222,7 @@ function draw() {
     const hours = open.length ? (Math.min(...open.map(o => o[0])) === 0 && Math.max(...open.map(o => o[1])) === 48 ? '24시간' : `${timeOf(Math.min(...open.map(o => o[0])))}~${timeOf(Math.max(...open.map(o => o[1])))}`) : '오늘 휴무';
     const nf = list.filter(x => x.s.k === 'f').length;
     return `<section><h2>${esc(z.name)} <small>오늘 ${hours} · 빈 방 ${nf}</small></h2>${list.map(({ r, s }) => `
-      <div class="room ${s.k}" data-id="${r.id}"><div class="row"><div class="name">${esc(bigOf(r.label))}<small>${esc(r.type)}</small></div><span class="st">${s.st}</span></div>
+      <div class="room ${s.k}" data-id="${r.id}"><div class="row"><div class="name">${esc(bigOf(r.label))}<small>${esc(catName(r))}</small></div><span class="st">${s.st}</span></div>
         <div class="msg">${esc(s.msg)}</div>
         <div class="tl">${span.map((c, i) => `<i class="${c < 48 ? r.cells[c] : 'none'} ${i === 0 ? 'now' : ''}"></i>`).join('')}</div><div class="ticks">${ticks}</div></div>`).join('')}</section>`;
   }).join('');
