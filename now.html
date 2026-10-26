@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>인생뮤직 연습실 현황</title>
+<!-- 수강생용 연습실 현황판 (2026-10-26 민제 "헛걸음 하지 않게"): 보기만, 이름 없음.
+     서버 함수 practice가 2분마다(+예약·취소 때) practice_status 표에 저장 → 이 화면은 공개용 열쇠로 그 표만 읽음 (학원 시스템·서버 함수 호출 없음).
+     디자인 (2026-10-26 민제): 민트색 빼고 브랜드 주황 포인트, 맨 위에 방 위치 도면.
+     주소: …/inmuu-room/now.html?b=지점번호 (기본 1 = 동탄) -->
+<style>
+  :root { --brand:#FF6B35; --brand-soft:#FFE6DB; --ink:#111111; --sub:#6B655C; --line:#ECEAE6; --busy:#4A4540; --busy-soft:#D9D5CF; --closed:#EFEDE9; --bg:#F7F5F2; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans-serif; background:var(--bg); color:var(--ink); -webkit-text-size-adjust:100%; }
+  header { background:var(--ink); color:#fff; padding:16px 18px 14px; }
+  header .t { font-size:14px; opacity:.8; }
+  header .big { display:flex; align-items:baseline; gap:8px; margin-top:6px; }
+  header .big b { font-size:42px; line-height:1; color:var(--brand); }
+  header .big span { font-size:16px; }
+  header .upd { font-size:12px; opacity:.7; margin-top:6px; }
+  header .upd.old { color:#FFB199; opacity:1; font-weight:700; }
+  .planbox { background:#fff; border-bottom:1px solid var(--line); padding:10px 12px 12px; }
+  .floors { display:flex; gap:6px; margin-bottom:8px; }
+  .plan svg { width:100%; height:auto; max-height:56vh; display:block; }
+  .plan .rm { cursor:pointer; }
+  .planlegend { display:flex; gap:12px; font-size:12px; color:var(--sub); margin-top:6px; flex-wrap:wrap; }
+  .planlegend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; vertical-align:-2px; }
+  .bar { display:flex; gap:6px; overflow-x:auto; padding:10px 12px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:1; }
+  .chip { flex:0 0 auto; border:1px solid #D9D6D0; background:#fff; border-radius:99px; padding:7px 13px; font:inherit; font-size:14px; color:var(--ink); }
+  .chip.on { background:var(--ink); border-color:var(--ink); color:#fff; font-weight:700; }
+  .chip.free.on, .chip.fl.on { background:var(--brand); border-color:var(--brand); }
+  main { padding:6px 12px 30px; max-width:720px; margin:0 auto; }
+  section { margin-top:14px; }
+  h2 { font-size:15px; margin:0 4px 8px; display:flex; justify-content:space-between; align-items:baseline; }
+  h2 small { font-size:12px; color:var(--sub); font-weight:500; }
+  .room { background:#fff; border-radius:14px; padding:10px 14px; margin-bottom:7px; border-left:6px solid var(--closed); transition:box-shadow .3s; }
+  .room.f { border-left-color:var(--brand); }
+  .room.b { border-left-color:var(--busy); }
+  .room.hi { box-shadow:0 0 0 3px var(--brand); }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .name { font-size:17px; font-weight:700; }
+  .name small { font-size:13px; color:var(--sub); font-weight:500; margin-left:4px; }
+  .st { font-size:13px; font-weight:700; padding:4px 10px; border-radius:99px; white-space:nowrap; }
+  .f .st { background:var(--brand); color:#fff; }
+  .b .st { background:var(--busy-soft); color:var(--busy); }
+  .x .st { background:var(--closed); color:var(--sub); }
+  .msg { font-size:14px; color:var(--sub); margin-top:4px; }
+  .f .msg { color:#C7461A; font-weight:600; }
+  .tl { display:flex; gap:2px; margin-top:9px; height:12px; }
+  .tl i { flex:1; border-radius:2px; background:var(--closed); }
+  .tl i.none { background:transparent; }
+  .tl i.f { background:var(--brand-soft); } .tl i.b { background:var(--busy); } .tl i.now { outline:2px solid var(--brand); outline-offset:-1px; }
+  .ticks { display:flex; font-size:10px; color:var(--sub); margin-top:3px; }
+  .ticks span { flex:1; }
+  .shut h2 { background:#fff; border-radius:12px; padding:12px 14px; color:var(--sub); margin:0; }
+  .empty { text-align:center; color:var(--sub); padding:40px 10px; font-size:15px; }
+  footer { font-size:13px; color:var(--sub); line-height:1.7; padding:4px 16px 30px; max-width:720px; margin:0 auto; }
+  footer b { color:var(--ink); }
+</style>
+</head>
+<body>
+<header>
+  <div class="t" id="branch">인생뮤직 연습실 현황</div>
+  <div class="big"><b id="freeN">-</b><span id="freeOf">지금 빈 방</span></div>
+  <div class="upd" id="upd">불러오는 중…</div>
+</header>
+<div class="planbox" id="planbox" style="display:none">
+  <div class="floors" id="floors"></div>
+  <div class="plan" id="plan"></div>
+  <div class="planlegend"><span><i style="background:var(--brand)"></i>비어 있음</span><span><i style="background:var(--busy)"></i>사용 중</span><span><i style="background:var(--closed);border:1px solid #D9D6D0"></i>이용 시간 아님</span><span>· 방을 누르면 아래에서 찾아 줘요</span></div>
+</div>
+<div class="bar" id="bar"></div>
+<main id="list"><div class="empty">연습실 현황을 불러오는 중이에요…</div></main>
+<footer>
+  <p>· 예약은 <b>학원 예약 PC</b>에서만 할 수 있어요. 오는 사이 다른 분이 먼저 예약할 수 있어요.<br>· 예약 시작 15분 안에 방문 QR로 입실하지 않으면 예약이 취소돼요.<br>· 이 화면은 1분마다 저절로 새로 고쳐져요.</p>
+</footer>
+<script>
+const SUPA = 'https://xvtdonfxdbouotstpoza.supabase.co', KEY = 'sb_publishable_Viu_KBcO9pbYpyLiz5f8QA_iCur9Ino';
+const B = +(new URLSearchParams(location.search).get('b') || 1);
+const BRAND = '#FF6B35', BUSY = '#4A4540', CLOSED = '#EFEDE9';
+let D = null, AT = null, TYPE = '', ONLY_FREE = false, FLOOR = null;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clean = svg => String(svg || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+\s*=\s*(["']).*?\1/gi, '');   // 도면 그림에 스크립트가 끼지 않게
+const timeOf = s => s >= 48 ? '24:00' : `${String(Math.floor(s / 2)).padStart(2, '0')}:${s % 2 ? '30' : '00'}`;
+const bigOf = l => /^\d+$/.test(l) ? l + '번' : l;
+// 한국 시간 기준 지금 칸(30분 단위)·날짜
+function kst() { const d = new Date(Date.now() + 9 * 3600e3); return { date: d.toISOString().slice(0, 10), slot: d.getUTCHours() * 2 + (d.getUTCMinutes() >= 30 ? 1 : 0), min: d.getUTCHours() * 60 + d.getUTCMinutes() }; }
+// 방 하나의 지금 상태와 안내 문구
+function stateOf(cells, cur) {
+  const c = cells[cur] || 'x';
+  const next = (from, want) => { for (let s = from; s < 48; s++) if (want(cells[s])) return s; return -1; };
+  if (c === 'f') { const end = next(cur, v => v !== 'f'); return { k: 'f', st: '비어 있음', msg: end < 0 ? '자정까지 비어 있어요' : cells[end] === 'b' ? `${timeOf(end)}까지 비어 있어요` : `이용 마감 ${timeOf(end)}까지 비어 있어요` }; }
+  if (c === 'b') { const fr = next(cur, v => v !== 'b'); return { k: 'b', st: '사용 중', msg: fr < 0 ? '오늘 남은 시간 모두 사용 중' : cells[fr] === 'f' ? `${timeOf(fr)}부터 비어요` : `${timeOf(fr)}까지 사용 중 (그 뒤 이용 마감)` }; }
+  const op = next(cur, v => v !== 'x'); return { k: 'x', st: '이용 시간 아님', msg: op < 0 ? '오늘 이용 시간이 끝났어요' : `${timeOf(op)}부터 이용할 수 있어요` };
+}
+// 층 묶음: 도면 구역 열쇠 앞 숫자(7f → 7층, 5l·5c·5r → 5층). 같은 층 구역은 한 도면으로 합침
+function floorsOf() {
+  const g = new Map();
+  for (const z of D.zones) {
+    if (!z.plan || !z.plan.viewBox) continue;
+    const f = String(z.plan.key || z.name);   // 구역마다 한 장 (2026-10-26 민제 "폰트 때문에 보기 힘들다": 5층 세 구역을 한 장에 몰면 글씨가 작아짐)
+    if (!g.has(f)) g.set(f, []);
+    g.get(f).push(z);
+  }
+  return [...g.entries()].map(([f, zs]) => {
+    const boxes = zs.map(z => z.plan.viewBox.split(/\s+/).map(Number));
+    const x0 = Math.min(...boxes.map(b => b[0])), y0 = Math.min(...boxes.map(b => b[1]));
+    const x1 = Math.max(...boxes.map(b => b[0] + b[2])), y1 = Math.max(...boxes.map(b => b[1] + b[3]));
+    return { key: f, name: zs[0].name.replace(' 연습실', ''), zones: zs, viewBox: `${x0} ${y0} ${x1 - x0} ${y1 - y0}`, w: x1 - x0 };
+  });
+}
+function drawPlan(cur, sameDay) {
+  const fl = floorsOf();
+  if (!fl.length) { $('#planbox').style.display = 'none'; return; }
+  $('#planbox').style.display = '';
+  const byId = new Map(D.zones.flatMap(z => z.rooms).map(r => [r.id, r]));
+  const freeIn = f => f.zones.flatMap(z => z.rooms).filter(r => sameDay && r.cells[cur] === 'f').length;
+  if (!FLOOR || !fl.some(f => f.key === FLOOR)) FLOOR = (fl.slice().sort((a, b) => freeIn(b) - freeIn(a))[0] || fl[0]).key;   // 처음엔 빈 방이 많은 층
+  $('#floors').innerHTML = fl.map(f => `<button class="chip fl ${f.key === FLOOR ? 'on' : ''}" data-floor="${esc(f.key)}">${esc(f.name)} · 빈 방 ${freeIn(f)}</button>`).join('');
+  const f = fl.find(x => x.key === FLOOR);
+  // 글씨 크기: 휴대폰 화면 기준 일정하게 (도면 단위 → 화면 픽셀 비율 k)
+  const vbW = +f.viewBox.split(' ')[2], k = vbW / Math.max(280, $('#plan').clientWidth || 360), sc = k / 2.2;
+  // 예약 PC용 "여기(현재 위치)" 표시 → 집에서 보는 휴대폰에선 "예약 PC"로
+  const forPhone = d => d.replace(/현재 위치 · /g, '').replace(/>여기</g, '>PC<');
+  const minFont = d => d.replace(/font-size=(['"])([\d.]+)['"]/g, (m, q, n) => `font-size=${q}${Math.max(+n, 11 * k)}${q}`);   // 라운지·복도·입구 등 도면 글씨도 화면에서 최소 11px
+  let svg = f.zones.map(z => minFont(forPhone(clean(z.plan.deco)))).join('');
+  for (const z of f.zones) for (const p of z.plan.rooms) {
+    const r = p.roomId != null ? byId.get(p.roomId) : null;
+    const st = r && sameDay ? (r.cells[cur] || 'x') : 'x';   // 지금 상태 (k = 글자 배율과 이름 겹치지 않게)
+    const fill = !r ? '#FFFFFF' : st === 'f' ? BRAND : st === 'b' ? BUSY : CLOSED;
+    const ink = r && (st === 'f' || st === 'b') ? '#FFFFFF' : '#8A857C';
+    const pass = !r || ((!TYPE || r.type === TYPE) && (!ONLY_FREE || st === 'f'));
+    const g = 4 * sc, cx = p.x + p.w / 2, cy = p.y + p.h / 2, small = p.w < 90 * sc;
+    const big = r ? (p.label && p.label !== p.drawn ? p.label : r.label) : '';   // 도면에선 번호만 크게 ("번" 없이)
+    const fs = Math.min(22 * k, p.h * 0.5, p.w / Math.max(1.6, big.length * 0.62));
+    const sub = 12 * k, showSub = p.h > fs + sub * 1.8 && p.w - 8 * sc > sub * Math.max(3, String(p.drawn || r?.type || '').length * 1.05);   // 칸보다 긴 종류 이름은 빼고 번호만
+    svg += `<g class="rm" data-id="${r ? r.id : ''}" opacity="${pass ? 1 : .25}">
+      <rect x="${p.x + g}" y="${p.y + g}" width="${p.w - 2 * g}" height="${p.h - 2 * g}" rx="${6 * sc}" fill="${fill}" stroke="${fill === '#FFFFFF' ? '#D9D6D0' : fill}" stroke-width="${1.5 * sc}" ${r ? '' : 'stroke-dasharray="5 5"'}/>
+      ${r ? `<text x="${cx}" y="${showSub ? cy - sub * 0.55 : cy}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-weight="800" fill="${ink}">${esc(big)}</text>
+      ${showSub ? `<text x="${cx}" y="${cy + fs * 0.62}" text-anchor="middle" dominant-baseline="middle" font-size="${sub}" font-weight="600" fill="${ink}">${esc(p.drawn || r.type)}</text>` : ''}` : ''}</g>`;
+  }
+  $('#plan').innerHTML = `<svg viewBox="${f.viewBox}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${esc(f.name)} 도면">${svg}</svg>`;
+  document.querySelectorAll('[data-floor]').forEach(b => b.onclick = () => { FLOOR = b.dataset.floor; draw(); });
+  // 도면의 방을 누르면 아래 목록에서 그 방을 찾아 보여 줌 (가려져 있으면 고르기를 풀고 다시)
+  document.querySelectorAll('.rm[data-id]').forEach(el => el.onclick = () => {
+    const id = el.dataset.id; if (!id) return;
+    let card = document.querySelector(`.room[data-id="${id}"]`);
+    if (!card) { TYPE = ''; ONLY_FREE = false; draw(); card = document.querySelector(`.room[data-id="${id}"]`); }
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.classList.add('hi'); setTimeout(() => card.classList.remove('hi'), 1600);
+  });
+}
+function draw() {
+  if (!D) return;
+  const now = kst(), cur = now.slot, sameDay = D.date === now.date;
+  const ageMin = Math.round((Date.now() - Date.parse(AT)) / 60000);
+  const rooms = D.zones.flatMap(z => z.rooms);
+  const types = [...new Set(rooms.map(r => r.type))];
+  const pass = r => (!TYPE || r.type === TYPE);
+  const free = sameDay ? rooms.filter(r => pass(r) && r.cells[cur] === 'f').length : 0;
+  const hm = `${String(Math.floor(now.min / 60)).padStart(2, '0')}:${String(now.min % 60).padStart(2, '0')}`;
+  $('#branch').textContent = `인생뮤직 ${D.branch ? D.branch + ' ' : ''}연습실 현황 · 지금 ${hm}`;
+  $('#freeN').textContent = sameDay ? free : '-';
+  $('#freeOf').textContent = `/ ${rooms.filter(pass).length}개 방 ${TYPE ? '(' + TYPE + ')' : ''} 지금 비어 있어요`;
+  const old = !sameDay || ageMin >= 10;
+  $('#upd').className = 'upd' + (old ? ' old' : '');
+  $('#upd').textContent = old ? `⚠ ${sameDay ? ageMin + '분 전' : '어제'} 정보예요. 잠시 뒤 다시 확인해 주세요.` : `${ageMin <= 0 ? '방금' : ageMin + '분 전'} 기준 · 오는 동안 바뀔 수 있어요`;
+  $('#bar').innerHTML = `<button class="chip free ${ONLY_FREE ? 'on' : ''}" data-free>빈 방만</button><button class="chip ${TYPE ? '' : 'on'}" data-type="">전체</button>` +
+    types.map(t => `<button class="chip ${t === TYPE ? 'on' : ''}" data-type="${esc(t)}">${esc(t)}</button>`).join('');
+  drawPlan(cur, sameDay);
+  // 남은 시간 막대: 지금부터 6시간(12칸), 항상 12칸 폭 (자정 넘는 칸은 빈칸)
+  const span = Array.from({ length: 12 }, (_, i) => cur + i);
+  const ticks = span.map(s => `<span>${s % 2 === 0 && s < 48 ? s / 2 + '시' : ''}</span>`).join('');
+  // 열린 구역을 위로, 지금 닫힌 구역은 한 줄로 접어 아래로
+  const zs = D.zones.map(z => ({ z, openNow: sameDay && z.rooms.some(r => (r.cells[cur] || 'x') !== 'x') })).sort((a, b) => b.openNow - a.openNow);
+  const rank = { f: 0, b: 1, x: 2 };
+  const html = zs.map(({ z, openNow }) => {
+    if (!openNow) {
+      if (ONLY_FREE || !z.rooms.some(pass)) return '';
+      const op = sameDay ? Math.min(...z.rooms.map(r => { const i = r.cells.slice(cur).search(/[fb]/); return i < 0 ? 99 : cur + i; })) : 99;
+      return `<section class="shut"><h2>${esc(z.name)} <small>지금 이용 시간 아님 · ${op < 48 ? timeOf(op) + '부터' : '오늘 마감'}</small></h2></section>`;
+    }
+    const list = z.rooms.filter(pass).map(r => ({ r, s: stateOf(r.cells, cur), nf: (() => { for (let x = cur; x < 48; x++) if (r.cells[x] === 'f') return x; return 99; })() }))
+      .filter(x => !ONLY_FREE || x.s.k === 'f').sort((a, b) => rank[a.s.k] - rank[b.s.k] || a.nf - b.nf);
+    if (!list.length) return '';
+    const open = z.rooms.map(r => r.cells.search(/[fb]/) >= 0 ? [r.cells.search(/[fb]/), 48 - [...r.cells].reverse().join('').search(/[fb]/)] : null).filter(Boolean);
+    const hours = open.length ? (Math.min(...open.map(o => o[0])) === 0 && Math.max(...open.map(o => o[1])) === 48 ? '24시간' : `${timeOf(Math.min(...open.map(o => o[0])))}~${timeOf(Math.max(...open.map(o => o[1])))}`) : '오늘 휴무';
+    const nf = list.filter(x => x.s.k === 'f').length;
+    return `<section><h2>${esc(z.name)} <small>오늘 ${hours} · 빈 방 ${nf}</small></h2>${list.map(({ r, s }) => `
+      <div class="room ${s.k}" data-id="${r.id}"><div class="row"><div class="name">${esc(bigOf(r.label))}<small>${esc(r.type)}</small></div><span class="st">${s.st}</span></div>
+        <div class="msg">${esc(s.msg)}</div>
+        <div class="tl">${span.map((c, i) => `<i class="${c < 48 ? r.cells[c] : 'none'} ${i === 0 ? 'now' : ''}"></i>`).join('')}</div><div class="ticks">${ticks}</div></div>`).join('')}</section>`;
+  }).join('');
+  $('#list').innerHTML = html || `<div class="empty">${ONLY_FREE ? '지금 빈 방이 없어요. 막대를 보고 비는 시간을 확인해 주세요.' : '표시할 방이 없어요.'}</div>`;
+  document.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { TYPE = b.dataset.type; draw(); });
+  $('[data-free]').onclick = () => { ONLY_FREE = !ONLY_FREE; draw(); };
+}
+async function load() {
+  try {
+    const r = await fetch(`${SUPA}/rest/v1/practice_status?branch_id=eq.${B}&select=data,updated_at`, { headers: { apikey: KEY } });
+    const j = await r.json();
+    if (!r.ok || !Array.isArray(j) || !j.length) throw new Error('none');
+    D = j[0].data; AT = j[0].updated_at; draw();
+  } catch (e) {
+    if (!D) $('#list').innerHTML = '<div class="empty">연습실 현황을 불러오지 못했어요.<br>인터넷 연결을 확인하고 잠시 뒤 다시 열어 주세요.</div>';
+  }
+}
+load();
+setInterval(load, 60000);
+setInterval(draw, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
