@@ -26,7 +26,7 @@
   .plan .rm { cursor:pointer; }
   .planlegend { display:flex; gap:12px; font-size:12px; color:var(--sub); margin-top:6px; flex-wrap:wrap; }
   .planlegend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; vertical-align:-2px; }
-  .bar { display:flex; gap:6px; overflow-x:auto; padding:10px 12px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:1; }
+  .bar { display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; padding:10px 12px; background:#fff; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:1; }
   .chip { flex:0 0 auto; border:1px solid #D9D6D0; background:#fff; border-radius:99px; padding:7px 13px; font:inherit; font-size:14px; color:var(--ink); }
   .chip.on { background:var(--ink); border-color:var(--ink); color:#fff; font-weight:700; }
   .chip.free.on, .chip.fl.on { background:var(--brand); border-color:var(--brand); }
@@ -84,6 +84,17 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const clean = svg => String(svg || '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+\s*=\s*(["']).*?\1/gi, '');   // 도면 그림에 스크립트가 끼지 않게
 const timeOf = s => s >= 48 ? '24:00' : `${String(Math.floor(s / 2)).padStart(2, '0')}:${s % 2 ? '30' : '00'}`;
+// 버튼 줄(층·악기): 다시 그려도 밀어 둔 위치를 지키고, 방금 누른 버튼은 줄 가운데로 넘어오게 (2026-10-26 민제)
+let CENTER = '';
+function setRow(sel, html) {
+  const box = $(sel), keep = box.scrollLeft;
+  box.innerHTML = html; box.scrollLeft = keep;
+  if (CENTER === sel) {
+    const on = box.querySelector(sel === '#bar' ? '[data-type].on' : '.on');   // 악기 줄은 [빈 방만]도 켜질 수 있어 악기 버튼만
+    if (on) box.scrollTo({ left: on.offsetLeft - box.offsetLeft - (box.clientWidth - on.offsetWidth) / 2, behavior: 'smooth' });
+    CENTER = '';
+  }
+}
 const bigOf = l => /^\d+$/.test(l) ? l + '번' : l;
 // 한국 시간 기준 지금 칸(30분 단위)·날짜
 function kst() { const d = new Date(Date.now() + 9 * 3600e3); return { date: d.toISOString().slice(0, 10), slot: d.getUTCHours() * 2 + (d.getUTCMinutes() >= 30 ? 1 : 0), min: d.getUTCHours() * 60 + d.getUTCMinutes() }; }
@@ -118,7 +129,7 @@ function drawPlan(cur, sameDay) {
   const byId = new Map(D.zones.flatMap(z => z.rooms).map(r => [r.id, r]));
   const freeIn = f => f.zones.flatMap(z => z.rooms).filter(r => sameDay && r.cells[cur] === 'f').length;
   if (!FLOOR || !fl.some(f => f.key === FLOOR)) FLOOR = (fl.slice().sort((a, b) => freeIn(b) - freeIn(a))[0] || fl[0]).key;   // 처음엔 빈 방이 많은 층
-  $('#floors').innerHTML = fl.map(f => `<button class="chip fl ${f.key === FLOOR ? 'on' : ''}" data-floor="${esc(f.key)}">${esc(f.name)} · 빈 방 ${freeIn(f)}</button>`).join('');
+  setRow('#floors', fl.map(f => `<button class="chip fl ${f.key === FLOOR ? 'on' : ''}" data-floor="${esc(f.key)}">${esc(f.name)} · 빈 방 ${freeIn(f)}</button>`).join(''));
   const f = fl.find(x => x.key === FLOOR);
   // 글씨 크기: 구역이 달라도 화면에서 같은 크기로 (2026-10-26 민제 "구역마다 폰트 사이즈가 뒤죽박죽")
   //   실제로 그려지는 배율 = 너비에 맞춘 배율과 높이(화면 56%)에 맞춘 배율 중 작은 쪽 → k = 도면 단위 / 화면 1px
@@ -150,7 +161,7 @@ function drawPlan(cur, sameDay) {
       ${showSub ? `<text x="${cx}" y="${cy + fs * 0.62}" text-anchor="middle" dominant-baseline="middle" font-size="${sub}" font-weight="600" fill="${ink}">${esc(p.drawn || r.type)}</text>` : ''}` : ''}</g>`;
   }
   $('#plan').innerHTML = `<svg viewBox="${f.viewBox}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${esc(f.name)} 도면">${svg}</svg>`;
-  document.querySelectorAll('[data-floor]').forEach(b => b.onclick = () => { FLOOR = b.dataset.floor; draw(); });
+  document.querySelectorAll('[data-floor]').forEach(b => b.onclick = () => { FLOOR = b.dataset.floor; CENTER = '#floors'; draw(); });
   // 도면의 방을 누르면 아래 목록에서 그 방을 찾아 보여 줌 (가려져 있으면 고르기를 풀고 다시)
   document.querySelectorAll('.rm[data-id]').forEach(el => el.onclick = () => {
     const id = el.dataset.id; if (!id) return;
@@ -175,8 +186,8 @@ function draw() {
   const old = !sameDay || ageMin >= 10;
   $('#upd').className = 'upd' + (old ? ' old' : '');
   $('#upd').textContent = old ? `⚠ ${sameDay ? ageMin + '분 전' : '어제'} 정보예요. 잠시 뒤 다시 확인해 주세요.` : `${ageMin <= 0 ? '방금' : ageMin + '분 전'} 기준 · 오는 동안 바뀔 수 있어요`;
-  $('#bar').innerHTML = `<button class="chip free ${ONLY_FREE ? 'on' : ''}" data-free>빈 방만</button><button class="chip ${TYPE ? '' : 'on'}" data-type="">전체</button>` +
-    types.map(t => `<button class="chip ${t === TYPE ? 'on' : ''}" data-type="${esc(t)}">${esc(t)}</button>`).join('');
+  setRow('#bar', `<button class="chip free ${ONLY_FREE ? 'on' : ''}" data-free>빈 방만</button><button class="chip ${TYPE ? '' : 'on'}" data-type="">전체</button>` +
+    types.map(t => `<button class="chip ${t === TYPE ? 'on' : ''}" data-type="${esc(t)}">${esc(t)}</button>`).join(''));
   drawPlan(cur, sameDay);
   // 남은 시간 막대: 지금부터 6시간(12칸), 항상 12칸 폭 (자정 넘는 칸은 빈칸)
   const span = Array.from({ length: 12 }, (_, i) => cur + i);
@@ -202,7 +213,7 @@ function draw() {
         <div class="tl">${span.map((c, i) => `<i class="${c < 48 ? r.cells[c] : 'none'} ${i === 0 ? 'now' : ''}"></i>`).join('')}</div><div class="ticks">${ticks}</div></div>`).join('')}</section>`;
   }).join('');
   $('#list').innerHTML = html || `<div class="empty">${ONLY_FREE ? '지금 빈 방이 없어요. 막대를 보고 비는 시간을 확인해 주세요.' : '표시할 방이 없어요.'}</div>`;
-  document.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { TYPE = b.dataset.type; draw(); });
+  document.querySelectorAll('[data-type]').forEach(b => b.onclick = () => { TYPE = b.dataset.type; CENTER = '#bar'; draw(); });
   $('[data-free]').onclick = () => { ONLY_FREE = !ONLY_FREE; draw(); };
 }
 async function load() {
