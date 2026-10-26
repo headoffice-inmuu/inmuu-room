@@ -20,7 +20,8 @@
   header .upd { font-size:12px; opacity:.7; margin-top:6px; }
   header .upd.old { color:#FFB199; opacity:1; font-weight:700; }
   .planbox { background:#fff; border-bottom:1px solid var(--line); padding:10px 12px 12px; }
-  .floors { display:flex; gap:6px; margin-bottom:8px; }
+  .floors { display:flex; gap:6px; margin-bottom:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; }   /* 층 버튼이 많아도 옆으로 밀어서 보기 (화면 전체가 밀리지 않게, 2026-10-26 민제 휴대폰) */
+  html, body { overflow-x:hidden; }
   .plan svg { width:100%; height:auto; max-height:56vh; display:block; }
   .plan .rm { cursor:pointer; }
   .planlegend { display:flex; gap:12px; font-size:12px; color:var(--sub); margin-top:6px; flex-wrap:wrap; }
@@ -119,11 +120,16 @@ function drawPlan(cur, sameDay) {
   if (!FLOOR || !fl.some(f => f.key === FLOOR)) FLOOR = (fl.slice().sort((a, b) => freeIn(b) - freeIn(a))[0] || fl[0]).key;   // 처음엔 빈 방이 많은 층
   $('#floors').innerHTML = fl.map(f => `<button class="chip fl ${f.key === FLOOR ? 'on' : ''}" data-floor="${esc(f.key)}">${esc(f.name)} · 빈 방 ${freeIn(f)}</button>`).join('');
   const f = fl.find(x => x.key === FLOOR);
-  // 글씨 크기: 휴대폰 화면 기준 일정하게 (도면 단위 → 화면 픽셀 비율 k)
-  const vbW = +f.viewBox.split(' ')[2], k = vbW / Math.max(280, $('#plan').clientWidth || 360), sc = k / 2.2;
+  // 글씨 크기: 구역이 달라도 화면에서 같은 크기로 (2026-10-26 민제 "구역마다 폰트 사이즈가 뒤죽박죽")
+  //   실제로 그려지는 배율 = 너비에 맞춘 배율과 높이(화면 56%)에 맞춘 배율 중 작은 쪽 → k = 도면 단위 / 화면 1px
+  const vb = f.viewBox.split(/\s+/).map(Number);
+  const s = Math.min(Math.max(280, $('#plan').clientWidth || 360) / vb[2], (window.innerHeight * 0.56) / vb[3]);
+  const k = 1 / s, sc = k / 2.2;
   // 예약 PC용 "여기(현재 위치)" 표시 → 집에서 보는 휴대폰에선 "예약 PC"로
   const forPhone = d => d.replace(/현재 위치 · /g, '').replace(/>여기</g, '>PC<');
-  const minFont = d => d.replace(/font-size=(['"])([\d.]+)['"]/g, (m, q, n) => `font-size=${q}${Math.max(+n, 11 * k)}${q}`);   // 라운지·복도·입구 등 도면 글씨도 화면에서 최소 11px
+  // 라운지·복도·입구·7F 같은 도면 글씨도 화면에서 11~20px 사이로
+  const minFont = d => d.replace(/font-size=(['"])([\d.]+)['"]/g, (m, q, n) => `font-size=${q}${Math.min(Math.max(+n, 11 * k), 20 * k)}${q}`);
+  const textW = t => [...String(t)].reduce((a, ch) => a + (/[가-힣]/.test(ch) ? 1 : 0.62), 0);   // 글자 폭 어림 (한글 1, 영문·숫자 0.62)
   let svg = f.zones.map(z => minFont(forPhone(clean(z.plan.deco)))).join('');
   for (const z of f.zones) for (const p of z.plan.rooms) {
     const r = p.roomId != null ? byId.get(p.roomId) : null;
@@ -133,8 +139,11 @@ function drawPlan(cur, sameDay) {
     const pass = !r || ((!TYPE || r.type === TYPE) && (!ONLY_FREE || st === 'f'));
     const g = 4 * sc, cx = p.x + p.w / 2, cy = p.y + p.h / 2, small = p.w < 90 * sc;
     const big = r ? (p.label && p.label !== p.drawn ? p.label : r.label) : '';   // 도면에선 번호만 크게 ("번" 없이)
-    const fs = Math.min(22 * k, p.h * 0.5, p.w / Math.max(1.6, big.length * 0.62));
-    const sub = 12 * k, showSub = p.h > fs + sub * 1.8 && p.w - 8 * sc > sub * Math.max(3, String(p.drawn || r?.type || '').length * 1.05);   // 칸보다 긴 종류 이름은 빼고 번호만
+    // 방 이름: 화면 15px로 같게, 칸이 좁을 때만 그 칸에 맞게 줄임 (최소 9px)
+    const inW = p.w - 2 * g - 6 * k, inH = p.h - 2 * g;
+    const fs = Math.max(9 * k, Math.min(15 * k, inW / Math.max(1, textW(big)), inH * 0.5));
+    const subT = p.drawn || r?.type || '', sub = 11 * k;
+    const showSub = subT && subT !== big && inH > fs + sub * 1.9 && inW > sub * textW(subT);   // 칸에 들어갈 때만 종류 이름
     svg += `<g class="rm" data-id="${r ? r.id : ''}" opacity="${pass ? 1 : .25}">
       <rect x="${p.x + g}" y="${p.y + g}" width="${p.w - 2 * g}" height="${p.h - 2 * g}" rx="${6 * sc}" fill="${fill}" stroke="${fill === '#FFFFFF' ? '#D9D6D0' : fill}" stroke-width="${1.5 * sc}" ${r ? '' : 'stroke-dasharray="5 5"'}/>
       ${r ? `<text x="${cx}" y="${showSub ? cy - sub * 0.55 : cy}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-weight="800" fill="${ink}">${esc(big)}</text>
@@ -210,6 +219,7 @@ load();
 setInterval(load, 60000);
 setInterval(draw, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+let RZ; window.addEventListener('resize', () => { clearTimeout(RZ); RZ = setTimeout(draw, 200); });   // 화면 크기가 바뀌면 도면 글씨 다시 맞춤
 </script>
 </body>
 </html>
