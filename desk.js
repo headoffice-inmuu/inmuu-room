@@ -94,7 +94,7 @@ function schedCol(room, slot, len, now, win) {
   }
   for (const d of room.day) if (d.to > a && d.from < b) {
     const f = Math.max(d.from, a), t = Math.min(d.to, b);
-    cells.push(`<div class="st-b ${d.kind === '수업' ? 'les' : 'pra'} ${d.to <= now ? 'past' : ''} ${t - f === 1 ? 'one' : ''}" style="grid-row:${row(f)} / span ${t - f}"><b>${d.kind}</b><span>${d.time}~${d.end}</span></div>`);
+    cells.push(`<div class="st-b ${d.kind === '수업' ? 'les' : 'pra'} ${d.to <= now ? 'past' : ''} ${t - f === 1 ? 'one' : ''}" style="grid-row:${row(f)} / span ${t - f}"><b>${d.kind}${d.who ? ' · ' + esc(d.who) : ''}</b><span>${d.time}~${d.end}</span></div>`);
   }
   cells.push(`<div class="st-p ${len === 1 ? 'one' : ''}" style="grid-row:${row(slot)} / span ${len}"><b>고른 시간</b><span>${tm(slot)}~${slot + len >= 48 ? '24:00' : tm(slot + len)}</span></div>`);
   const nowTop = (now - a) * 30 + (new Date().getMinutes() % 30);
@@ -122,10 +122,13 @@ function draw() {
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
     const stroke = !room ? SOFT : me ? BRAND : ok ? BRAND : SOFT, sw = (me ? 5 : ok ? 2 : 1) * sc;
     const big = room ? bigOf(p) : '연결 전', fs = (small ? 24 : big.length > 3 ? 20 : 32) * sc;
+    // 고른 시간에 이 방을 쓰는 사람 (2026-10-28 민제: 수강생은 가린 이름 "김○○", 강사는 "○○○T") — 사용 중인 방에만
+    const occ = room && !ok && (room.day || []).find(d => d.who && d.from <= D.slot && D.slot < d.to);
     svg += `<g class="room ${ok ? '' : 'busy'}" data-room="${p.roomId ?? ''}">
       <rect x="${p.x + g}" y="${p.y + g}" width="${p.w - 2 * g}" height="${p.h - 2 * g}" fill="#FFFFFF" stroke="${stroke}" stroke-width="${sw}" ${room ? '' : 'stroke-dasharray="5 5"'}/>
       <text x="${cx}" y="${cy - 4 * sc}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-weight="700" fill="${me ? BRAND : ok ? INK : MUTE}">${esc(big)}</text>
-      <text x="${cx}" y="${cy + fs * 0.75}" text-anchor="middle" dominant-baseline="middle" font-size="${(small ? 11 : 13) * sc}" font-weight="500" fill="${me ? BRAND : ok ? '#6B655C' : MUTE}">${esc(p.drawn)}</text></g>`;
+      <text x="${cx}" y="${cy + fs * 0.75}" text-anchor="middle" dominant-baseline="middle" font-size="${(small ? 11 : 13) * sc}" font-weight="500" fill="${me ? BRAND : ok ? '#6B655C' : MUTE}">${esc(p.drawn)}</text>${occ ? `
+      <text x="${cx}" y="${cy + fs * 0.75 + (small ? 15 : 19) * sc}" text-anchor="middle" dominant-baseline="middle" font-size="${(small ? 11 : 13) * sc}" font-weight="700" fill="#5F5A52">${esc(occ.who)} ~${esc(occ.end)}</text>` : ''}</g>`;
   }
   const extra = (z.extra || []).map(e => { const room = roomOf(e.id), ok = run(room, D.slot) > 0;
     return `<button class="chip" data-room="${e.id}" ${ok ? '' : 'disabled'} style="${ok ? `border-color:${D.sel === e.id ? BRAND : BRAND};${D.sel === e.id ? 'border-width:3px' : ''}` : ''}">${esc(e.name)} · ${esc(e.type)}</button>`; }).join('');
