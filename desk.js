@@ -177,9 +177,9 @@ function draw() {
 // ---------- 본인 확인 (예약·내 예약 앞에서) ----------
 function withMe(next) {
   if (D.t) return next();
-  modal(`<h3>본인 확인</h3><p class="hint">수강 중인 분만 예약할 수 있어요.</p>
+  modal(`<h3>본인 확인</h3><p class="hint">수강 중인 분과 강사님만 예약할 수 있어요.</p>
     <label for="name">이름</label><input id="name" autocomplete="off" placeholder="홍길동">
-    <label for="tail">휴대폰 번호 끝 4자리</label><input id="tail" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+    <label for="tail">휴대폰 번호 끝 4자리 <small style="font-weight:400;color:#8A857C">(강사님은 강사 번호 4자리)</small></label><input id="tail" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
     <div class="msg" id="lmsg"></div><div class="row"><button class="btn" id="mx">닫기</button><button class="btn pri" id="lgo">확인</button></div>`);
   const go = async () => {
     const j = await call('/api/kiosk/desk/login', { name: $('#name').value, tail: $('#tail').value });
