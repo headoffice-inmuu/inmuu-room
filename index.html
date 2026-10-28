@@ -104,11 +104,11 @@ function bindForget() { $('#forget')?.addEventListener('click', () => { device(t
 function login(msg) {
   show(`<p class="hint" style="margin-top:0">처음 한 번만 본인 확인을 해 주세요.<br>이 휴대폰은 30일 동안 기억해요.</p>
     <label for="name">이름</label><input id="name" autocomplete="off" placeholder="홍길동">
-    <label for="tail">휴대폰 번호 끝 4자리</label><input id="tail" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+    <label for="tail">휴대폰 번호 끝 4자리 <small style="font-weight:400;color:#8A857C">(강사님은 강사 번호 4자리)</small></label><input id="tail" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
     <div class="msg" id="msg">${esc(msg || '')}</div><button class="btn pri" id="go">확인</button>`);
   const go = async () => {
     const name = $('#name').value.trim(), tail = $('#tail').value.replace(/\D/g, '');
-    if (name.length < 2 || tail.length !== 4) { $('#msg').textContent = '이름과 휴대폰 번호 끝 4자리를 넣어 주세요.'; return; }
+    if (name.length < 2 || tail.length !== 4) { $('#msg').textContent = '이름과 휴대폰 번호 끝 4자리(강사님은 강사 번호)를 넣어 주세요.'; return; }
     $('#go').disabled = true; $('#msg').textContent = ''; $('#go').textContent = '확인하는 중…';
     const j = await ask('login', { name, tail });
     if (!j.ok) { if (j.timeout || j.net) return fail(j); $('#go').disabled = false; $('#go').textContent = '확인'; $('#msg').textContent = j.error || '확인하지 못했어요.'; return; }
