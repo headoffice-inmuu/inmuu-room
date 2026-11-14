@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>인생뮤직 신규등록</title>
+<!-- 키오스크 길잡이 (2026-11-14 민제 "주소가 바뀌어도 매일 아이콘만 누르면 연결")
+     휴대폰 바탕화면 아이콘 = 이 페이지 (주소가 안 바뀜). 카운터 PC가 30분마다 인터넷 서버 kiosk_addr 표에 적어 둔
+     지금 주소(예 192.168.35.126:5810)를 읽어 그 키오스크 화면으로 넘겨 준다.
+     일부러 "앱처럼 전체 화면" 설정을 넣지 않음: 아이폰에서 사파리로 열려야 키오스크 PIN 기억(30일)이 사파리와 같이 유지됨. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.jpg">
+<style>
+  :root { --bg:#FBF9F5; --ink:#222; --sub:#777; --brand:#F7A941; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,"Malgun Gothic",sans-serif; }
+  main { max-width:420px; margin:0 auto; padding:56px 22px; text-align:center; }
+  h1 { font-size:22px; margin:0 0 12px; }
+  p { font-size:16px; line-height:1.6; color:var(--sub); margin:8px 0; }
+  .wait i { display:inline-block; width:10px; height:10px; background:var(--brand); margin-right:8px; animation:b 1s infinite alternate; }
+  @keyframes b { from { opacity:.2 } to { opacity:1 } }
+  .btn { display:inline-block; margin-top:20px; padding:14px 26px; border:0; border-radius:12px; background:var(--brand); color:#222; font-size:17px; font-weight:700; text-decoration:none; }
+</style>
+</head>
+<body>
+<main id="app"><h1>인생뮤직 신규등록</h1><p class="wait"><i></i>키오스크에 연결하는 중…</p></main>
+<script>
+'use strict';
+const SUPA = 'https://xvtdonfxdbouotstpoza.supabase.co', KEY = 'sb_publishable_Viu_KBcO9pbYpyLiz5f8QA_iCur9Ino';
+const B = +(new URLSearchParams(location.search).get('b') || 0);
+const app = document.getElementById('app');
+const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { } } };
+const ok = a => /^(10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d{2,5}$/.test(a || '');
+const go = a => location.replace('http://' + a + '/kiosk');
+function fail(html, last) {
+  app.innerHTML = `<h1>키오스크에 연결하지 못했어요</h1><p>${html}</p>` +
+    (ok(last) ? `<a class="btn" href="http://${last}/kiosk">지난번 주소로 열기</a>` : '') +
+    `<br><a class="btn" href="" onclick="location.reload();return false">다시 시도</a>`;
+}
+(async () => {
+  const key = 'inmuu_kiosk_addr_' + B, last = store.get(key);
+  if (!B) return fail('주소가 잘못됐어요. 카운터 컴퓨터 [키오스크 관리]에 나온 주소로 다시 만들어 주세요.', last);
+  try {
+    const ctl = new AbortController(); setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch(`${SUPA}/rest/v1/kiosk_addr?select=addr&branch_id=eq.${B}`, { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY }, cache: 'no-store', signal: ctl.signal });
+    const rows = r.ok ? await r.json() : [];
+    const a = rows[0] && rows[0].addr;
+    if (ok(a)) { store.set(key, a); return go(a); }
+    fail('카운터 컴퓨터가 아직 주소를 알려 주지 않았어요.<br>카운터 컴퓨터의 현장 대시보드가 켜져 있는지 확인해 주세요.', last);
+  } catch {
+    // 인터넷이 잠깐 안 될 때: 지난번 주소로 바로 시도
+    if (ok(last)) return go(last);
+    fail('인터넷에 연결하지 못했어요. 학원 와이파이에 연결돼 있는지 확인해 주세요.', last);
+  }
+})();
+</script>
+</body>
+</html>
